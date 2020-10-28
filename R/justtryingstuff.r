@@ -31,10 +31,10 @@ d = f %>%
   arrange(user_id, timestamp) %>%
   left_join(tp)
 
-#saveRDS(d, file = 'data/tmp/analysis_backup.rds')
+#saveRDS(d, file = 'data/intermediate/analysis_backup.rds')
 
 ##
-d = readRDS('data/tmp/analysis_backup.rds')
+d = readRDS('data/intermediate/analysis_backup.rds')
 
 ## add lag_selected (i.e. how often was topic selected in past x hours). 
 hours_window = 24*7
