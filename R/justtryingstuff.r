@@ -86,26 +86,26 @@ d = d %>%
 
 
 ## add real_topic_pref
-ref_size = 0.5
+#ref_size = 0.5
 
-d = d %>%
-  group_by(user_id) %>%
-  mutate(reference = 1:n() < floor(n()*ref_size))
+#d = d %>%
+#  group_by(user_id) %>%
+#  mutate(reference = 1:n() < floor(n()*ref_size))
 
-d_ref = filter(d, reference)
-d = filter(d, !reference)
+#d_ref = filter(d, reference)
+#d = filter(d, !reference)
 
-real_topic_pref = d_ref %>%
-  arrange(user_id, exposure_id, -selected) %>%
-  distinct(user_id, exposure_id, topic, .keep_all = T) %>%
-  group_by(user_id, topic) %>%
-  summarize(topic_n = mean(selected)) %>%
-  mutate(topic_pct = topic_n / sum(topic_n)) %>%
-  select(user_id, topic, real_topic_pref = topic_pct)
+#real_topic_pref = d_ref %>%
+#  arrange(user_id, exposure_id, -selected) %>%
+#  distinct(user_id, exposure_id, topic, .keep_all = T) %>%
+#  group_by(user_id, topic) %>%
+#  summarize(topic_n = mean(selected)) %>%
+#  mutate(topic_pct = topic_n / sum(topic_n)) %>%
+#  select(user_id, topic, real_topic_pref = topic_pct)
 
-d = d %>%
-  left_join(real_topic_pref) %>%
-  mutate(real_topic_pref = ifelse(is.na(real_topic_pref), 0, real_topic_pref))
+#d = d %>%
+#  left_join(real_topic_pref) %>%
+#  mutate(real_topic_pref = ifelse(is.na(real_topic_pref), 0, real_topic_pref))
   
 #topic_pref = d %>%
 #  distinct(user_id, topic, topic_pref, real_topic_pref) %>%
@@ -153,6 +153,10 @@ ds = d %>%
 
 ds = filter(ds, lag_n > 5 & topic != 'Wetenschap')
 
+## there should be a setting for whether non-selected articles are repeated
+## this would be an interesting quasi-experimental condition
+
+## maybe check whether rating relates to source (that they don't see when clicking)
 
 m = glmer(selected ~ lag_1_selected + lag_session + position + selected_exp + topic_pref + real_topic_pref + (1 | topic) + (1 | user_id), data=ds, family=binomial('logit'))
 tab_model(m)
@@ -169,3 +173,22 @@ tab_model(m1,m2,m3,m4,m5)
 
 m6 = glmer(selected ~ lag_1_selected + lag_window + position + selected_exp + topic_pref + lag_1_selected * topic_pref + (1 | topic) + (1 | user_id), data=ds, family=binomial('logit'))
 tab_model(m6)
+
+
+############ click towards diversity
+
+d
+dss = filter(d, selected==T & lag_n > 5 & topic != 'Wetenschap')
+dss = mutate(dss, ctd = 1 - lag_window)
+dss = dss %>%
+  group_by(user_id) %>%
+  mutate(exposure_i = 1:n()) %>%
+  group_by(user_id, session) %>%
+  mutate(session_i = 1:n())
+m = lmer(ctd ~ position + lag_1_selected + exposure_i + session_i + selected_exp + rating_selected + (1 | topic) + (1 | user_id), data=dss)
+
+m = lmer(ctd ~ position + lag_1_selected + exposure_i + session_i + selected_exp + rating_selected + (1 | user_id), data=dss)
+tab_model(m)
+dss
+
+
