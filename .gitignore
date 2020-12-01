@@ -4,5 +4,6 @@
 .Ruserdata
 .DS_Store
 
-data/tmp*
+data/tmp/article_features.csv
+data/tmp/exposures.csv
 data/raw/news*

@@ -3,6 +3,10 @@ library(sjPlot)
 library(tidyverse)
 library(zoo)
 
+## wtd
+## - maybe include position 'likelihood' as score. Advantage is that this would be independent of topic choice
+
+
 d = readRDS('data/intermediate/analysis_backup.rds')
 
 u = read_csv('data/tmp/users_new.csv') %>%
@@ -30,31 +34,57 @@ ds = d %>%
 optim = control=glmerControl(optimizer="bobyqa",
                              optCtrl=list(maxfun=2e5))
 
-m = list()
+
+lm1a = glmer(selected ~ position + short_selected + long_selected + topic_in_exp + (1 | user_id) + (1 | topic), 
+                    data=ds, family=binomial, control=optim)
+lm1b = glmer(selected ~ position + short_selected + topic_pref + topic_in_exp + (1 | user_id) + (1 | topic), 
+            data=ds, family=binomial, control=optim)
+lm2 = glmer(selected ~ position + short_selected + long_selected + topic_pref + topic_in_exp + (1 | user_id) + (1 | topic), 
+            data=ds, family=binomial, control=optim)
+tab_model(lm1a, lm1b, lm2, show.ci = F, p.style = 'stars')
+
+gm1 = glmer(selected ~ position + short_selected + long_selected + topic_in_exp + topic + (1 | user_id), 
+            data=ds, family=binomial, control=optim)
+gm2 = glmer(selected ~ position + short_selected + long_selected + topic_pref + topic_in_exp + topic + (1 | user_id), 
+            data=ds, family=binomial, control=optim)
+tab_model(gm1, gm2)
+summary(gm2)
+
+
+m0 = list()
 for (topic in unique(ds$topic)) {
   message(topic)
-  m[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + (1 | user_id), 
+  m0[[topic]] = glmer(selected ~ position + short_selected + topic_pref + topic_in_exp + (1 | user_id), 
+                      data=ds[ds$topic == topic,], family=binomial, control=optim)
+}
+tab_model(m0, dv.labels = names(m0), show.ci = F, p.style = 'stars')
+
+
+m1 = list()
+for (topic in unique(ds$topic)) {
+  message(topic)
+  m1[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + (1 | user_id), 
                      data=ds[ds$topic == topic,], family=binomial, control=optim)
 }
-tab_model(m, dv.labels = names(m), show.ci = F, p.style = 'stars')
+tab_model(m1, dv.labels = names(m1), show.ci = F, p.style = 'stars')
 
-m = list()
+m2 = list()
 for (topic in unique(ds$topic)) {
   message(topic)
-  m[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + 
+  m2[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + 
                        exp_group + exp_group*topic_pref + (1 | user_id), 
                      data=ds[ds$topic == topic,], family=binomial, control=optim)
 }
-tab_model(m, dv.labels = names(m), show.ci = F, p.style = 'stars')
+tab_model(m2, dv.labels = names(m2), show.ci = F, p.style = 'stars')
 
-m = list()
+m3 = list()
 for (topic in unique(ds$topic)) {
   message(topic)
-  m[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + 
+  m3[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + 
                        exp_group + exp_group*long_selected + (1 | user_id), 
                      data=ds[ds$topic == topic,], family=binomial, control=optim)
 }
-tab_model(m, dv.labels = names(m), show.ci = F, p.style = 'stars')
+tab_model(m3, dv.labels = names(m3), show.ci = F, p.style = 'stars')
 
 
 #### Binnenland and Buitenland are predicted by previous choices in the past three days
@@ -122,6 +152,8 @@ dss = dss %>%
   group_by(user_id) %>%
   mutate(exposure_i = 1:n()) %>%
   mutate(exposure_i = exposure_i - mean(exposure_i))
+
+
 
 m1 = lmer(ctd_pref ~ position + sim_exp_tp + (1 | user_id), data=dss)
 m2 = lmer(ctd_pref ~ position + sim_exp_tp + exp_group + (1 | user_id), data=dss)
