@@ -26,7 +26,7 @@ d = f %>%
   select(news_id, topic) %>%
   inner_join(e) %>%
   select(user_id, session, exposure_id, timestamp, topic, position, 
-         selected, rating_selected, rating2_selected) %>%
+         selected, rating_selected, rating2_selected, devices_group) %>%
   mutate(timestamp = as.POSIXct(timestamp)) %>%
   arrange(user_id, timestamp) %>%
   mutate(topic = recode(topic, 

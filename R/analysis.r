@@ -18,7 +18,11 @@ d = left_join(d, u) %>%
                             `group 1` = "1: random",
                             `group 2` = "2: recommender A",
                             `group 3` = '2: recommender B',
-                            `group 4` = "3: custom"))
+                            `group 4` = "3: custom"),
+         device = recode(devices_group, 
+                         `mobile` = 'mobile', 
+                         `tablet` = 'PC', 
+                         `PC` = "PC"))
 ### might be good to just use multiple models to showcase that you can do
 ### different things with this data
 
