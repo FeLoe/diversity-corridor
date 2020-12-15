@@ -41,10 +41,13 @@ optim = control=glmerControl(optimizer="bobyqa",
 
 lm1a = glmer(selected ~ position + short_selected + long_selected + topic_in_exp + (1 | user_id) + (1 | topic), 
                     data=ds, family=binomial, control=optim)
+
 lm1b = glmer(selected ~ position + short_selected + topic_pref + topic_in_exp + (1 | user_id) + (1 | topic), 
             data=ds, family=binomial, control=optim)
+
 lm2 = glmer(selected ~ position + short_selected + long_selected + topic_pref + topic_in_exp + (1 | user_id) + (1 | topic), 
             data=ds, family=binomial, control=optim)
+
 tab_model(lm1a, lm1b, lm2, show.ci = F, p.style = 'stars')
 
 gm1 = glmer(selected ~ position + short_selected + long_selected + topic_in_exp + topic + (1 | user_id), 
@@ -54,7 +57,7 @@ gm2 = glmer(selected ~ position + short_selected + long_selected + topic_pref + 
 tab_model(gm1, gm2)
 summary(gm2)
 
-
+ds = ds %>% mutate(topic_hate = topic_pref < 3, topic_love = topic_pref > 5)
 m0 = list()
 for (topic in unique(ds$topic)) {
   message(topic)
@@ -63,14 +66,29 @@ for (topic in unique(ds$topic)) {
 }
 tab_model(m0, dv.labels = names(m0), show.ci = F, p.style = 'stars')
 
+m0a = list()
+for (topic in unique(ds$topic)) {
+  message(topic)
+  m0a[[topic]] = glmer(selected ~ position + short_selected + topic_hate + topic_love + topic_in_exp + (1 | user_id), 
+                      data=ds[ds$topic == topic,], family=binomial, control=optim)
+}
+tab_model(m0a, dv.labels = names(m0a), show.ci = F, p.style = 'stars')
 
 m1 = list()
 for (topic in unique(ds$topic)) {
   message(topic)
   m1[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + (1 | user_id), 
-                     data=ds[ds$topic == topic,], family=binomial, control=optim)
+                      data=ds[ds$topic == topic,], family=binomial, control=optim)
 }
 tab_model(m1, dv.labels = names(m1), show.ci = F, p.style = 'stars')
+
+m1a = list()
+for (topic in unique(ds$topic)) {
+  message(topic)
+  m1a[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_in_exp + (1 | user_id), 
+                      data=ds[ds$topic == topic,], family=binomial, control=optim)
+}
+tab_model(m1a, dv.labels = names(m1a), show.ci = F, p.style = 'stars')
 
 m2 = list()
 for (topic in unique(ds$topic)) {
