@@ -38,7 +38,7 @@ d = f %>%
 
 ## set long and short window (in hours)
 ## the long window will not include the short window
-long_window = 24*7
+long_window = 3*24
 short_window = 1
 max_n = Inf  ## include only n last articles within window
 sum_selected <- function(x, n=max_n) sum(tail(x, n))   
@@ -57,44 +57,13 @@ d = d %>%
   mutate(long_window_n = runner(selected, f=sum, k=paste(long_window, 'hours'), lag=paste(short_window, 'hours'), idx=timestamp)) %>% 
   mutate(short_window_n = runner(selected, f=sum, k=paste(short_window, 'hours'), lag='1 sec', idx=timestamp))
   
-
 ## add lag_window (note that this is NaN if lag_n == 0. We should drop these cases in analysis)
 d = d %>%
   mutate(long_selected = long_window_selected / long_window_seen,
          long_seen = long_window_seen / long_window_n,
          short_selected = short_window_selected / short_window_seen,
-         short_seen = short_window_seen / short_window_n)
-#%>%
-#  select(-long_window_selected, -long_window_seen, -long_window_n, 
-#         -short_window_selected,-short_window_seen, -short_window_n)
-
-## add lag_1_selected (i.e. only previous topic)
-#lag_topic = d %>%
-#  filter(selected == 1) %>%
-#  arrange(user_id, exposure_id) %>%
-#  group_by(user_id) %>%
-#  mutate(lag_topic = lag(topic, n = 1)) %>%
-#  select(user_id, exposure_id, lag_topic)
-
-#d = d %>%
-#  left_join(lag_topic) %>%
-#  mutate(lag_1_selected = as.numeric(topic == lag_topic))
-
-
-## add lag_session (i.e. how many times was topic selected before in current session)
-#d = d %>%
-#  group_by(user_id, session, topic) %>%
-#  arrange(user_id, session, exposure_id, -selected) %>%
-#  mutate(lag_session = cumsum(selected)) 
-
-#exp_id_topic = d %>%
-#  filter(selected==T) %>%
-#  select(user_id, exposure_id, selected_topic=topic)
-
-#d = d %>%
-#  left_join(exp_id_topic) %>%
-#  mutate(lag_session = lag_session - as.numeric(topic == selected_topic))
-
+         short_seen = short_window_seen / short_window_n) %>%
+  mutate(full_selected = (long_window_selected + short_window_selected) / (long_window_seen + short_window_seen))
 
 ## add topic_in_exp (i.e. times selected topic occurs in current exposure)
 d = d %>%
