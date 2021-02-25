@@ -18,7 +18,8 @@ d = left_join(d, u) %>%
          device = recode(devices_group, 
                          `mobile` = 'mobile', 
                          `tablet` = 'PC', 
-                         `PC` = "PC"))
+                         `PC` = "PC")) %>%
+  filter(user_id != 637) #filter out person with unusual high usage of the system
 
 ### What predicts whether a topic is selected when it is an option?
 ### This serves a more explorative goal. 
