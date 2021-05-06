@@ -10,6 +10,6 @@ This repository contains the data and code needed for the analyses presented in 
   - processing: Scripts for reading, cleaning, merging the data and preparing it for the analysis. Results in the analysis_backup.rds file used for analysis. 
   - analysis: Randomization checks and the main analysis (using the analysis_backup.rds file). 
 
-Thus, to recreate the analysis that are reported on in the paper, run the src/analysis/analysis.Rmd script. 
+Thus, to recreate the analyses that are reported on in the paper, run the src/analysis/analysis.Rmd script. 
 If you are interested in using different processing steps for the raw data look at the src/processing/ folder. For some parts you might need to request the two missing data files (see comment above). 
 
