@@ -4,6 +4,7 @@
 .Ruserdata
 .DS_Store
 
-data/tmp/article_features.csv
-data/tmp/exposures.csv
-data/raw/news*
+data/raw-private/**
+data/intermediate/exposures.csv
+data/intermediate/article_features.csv
+src/analysis/analysis_files

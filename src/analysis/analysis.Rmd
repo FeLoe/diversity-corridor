@@ -1,0 +1,447 @@
+---
+title: "Analysis for Paper 'Is this a click towards diversity?'"
+author: Felicia Loecherbach, Kasper Welbers, Judith Moeller, Damian Trilling, Wouter van Atteveldt
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries_needed, message = F, warning = F}
+library(ggplot2)
+library(psych)
+library(ggstatsplot)
+library(lme4)
+library(sjPlot)
+library(tidyverse)
+```
+
+## 4.1 Usage of the system
+### Topics
+#### Topics presented
+```{r, message = F, warning = F}
+d = readRDS('../../data/intermediate/analysis_backup.rds')
+knitr::kable(table(d$topic))
+```
+#### Topics chosen
+```{r, message = F, warning = F}
+sel = d %>% filter(selected == '1')
+knitr::kable(table(sel$topic))
+```
+#### Filter out small topics
+
+```{r}
+#Rename small topics
+d = d %>%   
+  mutate(topic = recode(topic, 
+                        Wetenschap = 'Anders',
+                        Immigratie = 'Anders',
+                        Milieu = 'Anders'))
+
+# remove 'Anders' topic
+anders_id = d$exposure_id[d$topic == 'Anders' & d$selected == 1]
+d = d %>%
+  filter(!exposure_id %in% anders_id) %>%
+  filter(topic != 'Anders')
+```
+
+### Exposures, Sessions
+#### How many exposures, how many sessions, length of sessions?
+```{r, message = F, warning = F}
+exposures = d %>% 
+  filter(selected == 1) %>% 
+  group_by(user_id, exp_group, exposure_id) %>%  
+  summarize(n = n()) %>% 
+  group_by(user_id, exp_group) %>% 
+  summarize(exp = n())
+sessions = d %>% 
+  filter(selected == 1) %>% 
+  group_by(user_id,exp_group, session) %>%
+  summarize(n = n()) %>% 
+  group_by(user_id, exp_group) %>% 
+  summarize(sess = n())
+exp_sess = left_join(exposures, sessions)
+exp_sess$len = exp_sess$exp/exp_sess$sess
+t1 = describe(exp_sess, skew = F)
+knitr::kable(t1)
+```
+#### Length of sessions over time? 
+```{r, message = F, warning = F}
+overtime = d %>% 
+  filter(selected == 1) %>%
+  group_by(user_id,exp_group, session) %>%
+  summarize(n = n()) %>%
+  group_by(session) %>%
+  summarize(sess_length = mean(n))
+t2 = describe(overtime, skew = F)
+knitr::kable(t2)
+p1 = ggplot(overtime, mapping = aes(x = session, y = sess_length)) + geom_point() + geom_smooth()
+plot(p1)
+```
+
+```{r, include = F}
+png("figures/sessionlength_overtime.png")
+plot(p1)
+dev.off()
+```
+
+## 4.2 Positioning Effects
+
+*RQ1*: To what extent can positioning effects be found in news selection and how consistent are they across (1) preferences, (2) topics, and (3) devices. 
+
+### In general
+```{r, message = F, warning = F}
+sel = d %>% 
+  group_by(position, selected) %>%
+  summarize(n = n()) %>%
+  group_by(position) %>%
+  mutate(p = n[selected == 1]/n[selected == 0]) %>%
+  filter(selected == 1) %>%
+  add_column(condition = "Overall", .before = "position")
+```
+### Per topic
+```{r, message = F, warning = F}
+sel_top = d %>% 
+  group_by(topic, position, selected) %>%
+  summarize(n = n()) %>%
+  group_by(position, topic) %>%
+  mutate(p = n[selected == 1]/n[selected == 0]) %>%
+  filter(selected == 1) %>%
+  dplyr::rename(condition = topic)
+
+labels_topics <- c("Binnenland" = "Domestic news", "Buitenland" = "Foreign news", "Economie" = "Economy", "Entertainment" = "Entertainment", 
+                   "Justitie" = "Crime", "Sport" = "Sports")
+```
+### Per preference
+```{r, message = F, warning = F}
+sel_pref = d %>%
+  group_by(topic_pref, position, selected) %>%
+  summarize(n = n()) %>%
+  group_by(position, topic_pref) %>%
+  mutate(p = n[selected == 1]/n[selected == 0]) %>%
+  filter(selected == 1) %>%
+  dplyr::rename(condition = topic_pref)
+
+sel_pref = sel_pref %>% ungroup() %>% 
+  mutate(condition = case_when(condition == 1 ~ "P: low", 
+                               condition == 2 | condition == 3 | 
+                                 condition == 4 ~ "P: medium", 
+                               condition == 5 | condition == 6 | 
+                                 condition == 7 ~ "P: high" )) %>%
+  group_by(position, condition) %>%
+  summarise(p = mean(p))
+```
+### Per device used
+```{r, message = F, warning = F}
+sel_dev = d %>% 
+  group_by(devices_group, position, selected) %>%
+  summarize(n = n()) %>%
+  group_by(position, devices_group) %>%
+  mutate(p = n[selected == 1]/n[selected == 0]) %>%
+  filter(selected == 1) %>%
+  dplyr::rename(condition = devices_group)
+
+```
+### Everything combined
+```{r, message = F, warning = F}
+sel_all = rbind(sel, sel_top, sel_dev, sel_pref)
+sel_all = sel_all %>% select(-c(selected, n)) %>% mutate(position = as.factor(position))
+
+sel_all = sel_all %>% mutate(condition = case_when(condition == 'tablet' ~ 'D: Tablet', 
+                                                   condition == 'mobile' ~ 'D: Mobile', 
+                                                   condition == 'PC' ~ 'D: PC', 
+                                                   condition == 'Justitie' ~ 'T: Crime',
+                                                   condition == 'Economie' ~ 'T: Economics',
+                                                   condition == 'Entertainment' ~ 'T: Entertain',
+                                                   condition == 'Buitenland' ~ 'T: Foreign',
+                                                   condition == 'Binnenland' ~ 'T: Domestic',
+                                                   condition == 'Sport' ~ 'T: Sport', 
+                                                   TRUE ~ condition))
+sel_all$condition = factor(sel_all$condition, levels = 
+                             c("Overall", "D: Mobile", "D: Tablet", "D: PC",
+                               "T: Sport", 'T: Crime', 'T: Domestic', 
+                               'T: Entertain', 'T: Foreign', 'T: Economics', 
+                               "P: low", "P: medium", "P: high"))
+
+
+p2 = ggplot(data = sel_all, aes(x = position, y = reorder(condition, desc(condition)))) + 
+  geom_tile(aes(fill = p)) + geom_text(aes(label = round(p, 2), color = p > 0.2, fontface = 2)) + 
+  scale_fill_viridis_b(direction = -1, "Proportion selected", guide = guide_legend(label.vjust = 0.2)) + 
+  labs(x = "Position", y = "") + 
+  theme_classic(base_size = 13) +
+  theme(legend.position="bottom") +
+  scale_color_manual(guide = FALSE, values = c("black", "white")) + 
+  geom_hline(aes(yintercept = 9.5), size = 1, color = "#450B59") + 
+  geom_hline(aes(yintercept = 3.5), size = 1, color = "#450B59") + 
+  geom_hline(aes(yintercept = 12.5), size = 1, color = "#450B59")
+plot(p2)
+```
+
+```{r, include = F}
+png("figures/positioning_effects.png")
+plot(p2)
+dev.off()
+```
+
+```{r, message = F, warning = F}
+ggplot(data = sel_all, aes(x = position, y = reorder(condition, desc(condition)))) + 
+  geom_tile(aes(fill = p)) + geom_text(aes(label = round(p, 2), color = p > 0.2, fontface = 2)) + 
+  scale_fill_gradient(low = "white", high = "black", "Proportion selected", guide = guide_legend(label.vjust = 0.2)) +
+  labs(x = "Position", y = "") + 
+  theme_classic(base_size = 13) +
+  theme(legend.position="bottom") +
+  scale_color_manual(guide = FALSE, values = c("black", "white")) + 
+  geom_hline(aes(yintercept = 9.5), size = 1, color = "black") + 
+  geom_hline(aes(yintercept = 3.5), size = 1, color = "black") + 
+  geom_hline(aes(yintercept = 12.5), size = 1, color = "black")
+
+```
+
+## 4.3 Control
+
+*RQ2*: To what extent does news personalisation (explicit and implicit) impact the amount and length of browsing sessions?
+
+### Differences in sessions, selections, lengths of sessions between groups
+```{r, message = F, warning = F}
+knitr::kable(describeBy(exp_sess[3:5],exp_sess$exp_group, skew = F, mat = T, ranges = F))
+exp_sess = exp_sess %>% ungroup()
+
+p3 = ggbetweenstats(
+  data = exp_sess,
+  x = exp_group,
+  y = sess,
+  type = "np",
+  title = "Differences in number of sessions between groups", 
+  xlab = "Experimental Groups", 
+  ylab = "Sessions",
+  pairwise.display = "all"
+)
+
+plot(p3)
+```
+
+```{r, include = F}
+png("figures/session_differences.png")
+plot(p3)
+dev.off()
+```
+
+```{r, message = F, warning = F}
+p4 = ggbetweenstats(
+  data = exp_sess,
+  x = exp_group,
+  y = exp,
+  type = "np",
+  title = "Differences in number of selections between groups", 
+  xlab = "Experimental Groups", 
+  ylab = "Selections", 
+  pairwise.display = "all"
+)
+
+plot(p4)
+```
+
+```{r, include = F}
+png("figures/selection_differences.png")
+plot(p4)
+dev.off()
+```
+
+```{r, message = F, warning = F}
+p5 = ggbetweenstats(
+  data = exp_sess,
+  x = exp_group,
+  y = len,
+  type = "np",
+  title = "Differences in length of sessions between groups", 
+  xlab = "Experimental Groups", 
+  ylab = "Length"
+)
+
+plot(p5)
+```
+
+```{r, include = F}
+png("figures/length_differences.png")
+plot(p5)
+dev.off()
+```
+
+
+### Differences in diversity between groups
+
+```{r, message = F, warning = F}
+entropy = function(x) {p=x/sum(x); -sum(ifelse(p==0, 0, p*log(p, 2)))}
+dpu1 = d %>% filter(selected==1) %>% group_by(user_id, topic) %>% summarize(n=n()) %>% 
+  summarize(diversity=entropy(n))
+dpu2 = d %>% group_by(user_id, topic) %>% summarize(n=n()) %>% 
+  summarize(expdiversity=entropy(n)) 
+u = d %>% ungroup() %>% select(1, 12:24) %>% distinct()
+dpu = dpu1 %>% inner_join(dpu2) %>% inner_join(u)
+
+dpu = dpu %>% ungroup()
+
+p6 = ggbetweenstats(
+  data = dpu,
+  x = exp_group,
+  y = diversity,
+  type = "np",
+  title = "Differences in consumption diversity between groups", 
+  xlab = "Experimental Groups", 
+  ylab = "Consumption Diversity"
+)
+plot(p6)
+```
+
+
+```{r, include = F}
+png("figures/c_diversity_differences.png")
+plot(p6)
+invisible(dev.off())
+```
+
+```{r, message = F, warning = F}
+p7 = ggbetweenstats(
+  data = dpu,
+  x = exp_group,
+  y = expdiversity,
+  type = "np",
+  title = "Differences in exposure diversity between groups", 
+  xlab = "Experimental Groups", 
+  ylab = "Exposure Diversity"
+)
+plot(p7)
+
+```
+
+```{r, include = F}
+png("figures/e_diversity_differences.png")
+plot(p7)
+dev.off()
+```
+
+
+```{r, message = F, warning = F}
+dpu = dpu %>% mutate(perc_div = (Diversity_1 + Diversity_2 + Diversity_3 +  Diversity_4)/4)
+
+p8 = ggbetweenstats(
+  data = dpu,
+  x = exp_group,
+  y = perc_div,
+  type = "np",
+  title = "Differences in perceived diversity between groups", 
+  xlab = "Experimental Groups", 
+  ylab = "Perceived Diversity"
+)
+plot(p8)
+```
+
+```{r, include = F}
+png("figures/p_diversity_differences.png")
+plot(p8)
+dev.off()
+```
+### Baseline vs consumption diversity between groups
+
+*RQ3*: To what extent does the amount of control affect the relationship between the diversity of topics preferences (the baseline) and the diversity of read topics? 
+
+#### Description topic preferences
+```{r, message = F, warning = F}
+topic_prefs = d %>% ungroup() %>% distinct(user_id, topic, topic_pref, topic_pref_dist) 
+topic_prefs_s = topic_prefs %>% group_by(topic, topic_pref) %>% summarise(n = n())
+ggplot(topic_prefs_s, aes(x = topic_pref, y = n)) + geom_bar(stat = "identity") + facet_wrap(~topic) 
+```
+
+#### Additional randomization check: Differences in diversity trait between groups
+```{r, message = F, warning = F}
+ggbetweenstats(
+  data = dpu,
+  x = exp_group,
+  y = div_trait,
+  type = "np",
+  title = "Differences in diversity trait between groups", 
+  xlab = "Experimental Groups", 
+  ylab = "Diversity Trait"
+)
+```
+
+#### Baseline + experimental group predicting consumption diversity
+```{r, message = F, warning = F}
+m1 = lm(data=dpu, diversity ~ as.factor(exp_group) + gender + age + edu + pol_knowledge + 
+     pol_interest + div_trait + div_trait*as.factor(exp_group))
+tab_model(m1)
+```
+
+```{r, message = F, warning = F}
+p9 = dpu %>% ggplot(aes(x=div_trait, y=diversity, color = exp_group)) + geom_jitter(alpha=.5,  height=0, width=.1) + 
+  geom_smooth(method=lm , size=.7, alpha=.2, se=TRUE) +
+  ylab("Consumption diversity") + 
+  xlab("Baseline diversity") + 
+  theme_classic(base_size = 15) +
+  theme(legend.position="bottom") +
+  scale_colour_viridis_d(name = "Groups", 
+                        labels = c("Random", "Rec_A", "Rec_B", "Customized"), end = 0.9)
+plot(p9)
+```
+
+```{r, include = F}
+png("figures/baseline_vs_consumption.png")
+plot(p9)
+dev.off()
+```
+
+```{r, message = F, warning = F}
+dpu %>% ggplot(aes(x=div_trait, y=diversity, linetype = exp_group, shape = exp_group), color = "black") + geom_jitter(alpha=.5,  height=0, width=.1, color = "black") + 
+  geom_smooth(method=lm , size=.5, alpha=.05, se=TRUE, color = "black") +
+  ylab("Consumption diversity") + 
+  xlab("Baseline diversity") + 
+  theme_classic(base_size = 15) +
+  theme(legend.position="bottom") +
+  scale_shape_manual(values = c(3, 16, 2, 15),
+                     name = "Groups", 
+                     labels = c("Random", "Rec_A", "Rec_B", "Customized")) +
+  scale_linetype_manual(values = c('longdash', 'dotted', 'twodash', 'solid'), name = "Groups", 
+                        labels = c("Random", "Rec_A", "Rec_B", "Customized"))
+
+```
+
+## 4.4 Integrated model
+
+*RQ4*: Under which conditions does the selection of a topic in the recent past reduce its likelihood of being selected again, showing saturation effects? 
+
+*RQ5*: To what extent can content-wise and situational factors explain topic choice?  
+
+```{r, message = F, warning = F}
+ds = d %>% 
+  group_by_at(vars(-position, -selected)) %>%
+  summarize(position=mean(position), min_position=min(position), selected=sum(selected)) %>%
+  ungroup() %>%
+  filter(long_window_seen >= 5 & short_window_seen >= 1)
+
+optim = control=glmerControl(optimizer="bobyqa",
+                             optCtrl=list(maxfun=2e5))
+
+m = list()
+for (topic in unique(ds$topic)) {
+  message(topic)
+  m[[topic]] = glmer(selected ~ position + long_selected + short_selected + topic_pref + topic_in_exp + (1 | user_id), 
+                     data=ds[ds$topic == topic,], family=binomial, control=optim)
+}
+
+pooled = glmer(selected ~ position + short_selected + long_selected + topic_pref + topic_in_exp + (1 | user_id) + (1 | topic), 
+               data=ds, family=binomial, control=optim)
+
+tab_model(c(m, pooled), dv.labels =c(names(m), 'Pooled'), show.aic=T, show.r2 = F, show.ci = F, p.style = 'stars', show.re.var=T)
+```
+
+## 4.5 Perceived vs actual diversity
+
+```{r, message = F, warning = F}
+cor.test(dpu$expdiversity, dpu$diversity, 
+         method = "pearson")
+cor.test(dpu$expdiversity, dpu$perc_div, 
+         method = "pearson")
+cor.test(dpu$diversity, dpu$perc_div, 
+         method = "pearson")
+```
